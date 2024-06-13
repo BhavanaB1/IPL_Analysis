@@ -1,0 +1,230 @@
+IPL_Data_Analysis(2021,2022,2023) Using SQL
+
+Show all batting records
+select * from fact_bating_summary;
+
+Show all bowling records
+select * from fact_bowling_summary;
+
+Show all match summary
+select * from dim_match_summary;
+
+Show all players records
+select * from dim_players;
+
+\\Top 10 batsmen based on past 3 years total runs scored\\
+select top 10 batsmanName,sum(runs) as total_runs_scored
+from fact_bating_summary a
+join dim_match_summary b on a.match_id=b.match_id
+group by batsmanName
+order by sum(runs) desc
+
+\\Top 10 batsmen based on past 3 years batting average. (min 60 balls faced in each season)\\
+with cte as 
+(select batsmanName,YEAR(matchDate) as date,
+sum(balls) as total_balls,sum(runs) as total_runs
+from fact_bating_summary a
+join dim_match_summary b on a.match_id=b.match_id
+WHERE YEAR(matchDate) IN (2021, 2022, 2023)
+group by batsmanName,YEAR(matchDate)
+having sum(balls)>=60)
+,cte1 as 
+(select batsmanName,(total_runs / total_balls) AS yearly_avg
+from cte
+group by batsmanName)
+,cte2 as 
+(select batsmanName,avg(yearly_avg) as batting_avg
+from cte1
+group by batsmanName)
+select top 10 batsmanName,batting_avg
+from cte2
+order by batting_avg desc
+
+//Top 10 batsmen based on past 3 years strike rate (min 60 balls faced in each season)//
+WITH cte AS (
+   SELECT batsmanName,YEAR(matchDate) AS year,SUM(balls) AS total_balls,SUM(runs) AS total_runs
+    FROM fact_bating_summary a
+    JOIN dim_match_summary b ON a.match_id = b.match_id
+    WHERE YEAR(matchDate) IN (2021, 2022, 2023)
+    GROUP BY batsmanName, YEAR(matchDate)
+    HAVING SUM(balls) >= 60)
+	,cte1 AS (
+    SELECT  batsmanName, ((SUM(total_runs) / SUM(total_balls)) * 100) AS yearly_strike_rate
+    FROM cte
+    GROUP BY batsmanName, year)
+	,cte2 AS (
+    SELECT batsmanName, AVG(yearly_strike_rate) AS avg_strike_rate
+    FROM cte1
+    GROUP BY batsmanName)
+SELECT TOP 10 batsmanName, avg_strike_rate AS SR
+FROM cte2
+ORDER BY avg_strike_rate DESC;
+
+//Top 10 bowlers based on past 3 years total wickets taken.//
+select top 10 bowlerName,sum(wickets) as total_wickets_taken
+from fact_bowling_summary a
+join dim_match_summary b on a.match_id=b.match_id
+WHERE YEAR(matchDate) IN (2021, 2022, 2023)
+group by bowlerName
+order by sum(wickets) desc
+
+//Top 10 bowlers based on past 3 years bowling average. (min 60 balls bowled in each season)//
+with cte as 
+(select bowlerName,YEAR(matchDate) as date,
+sum(runs) as total_runs,sum(wickets) as total_wickets_taken
+from fact_bowling_summary a
+join dim_match_summary b on a.match_id=b.match_id
+where year(matchDate) in (2021,2022,2023)
+group by bowlerName,YEAR(matchDate)
+having sum(overs*6)>=60)
+,cte1 as 
+(select bowlerName, (total_runs/total_wickets_taken) as bowling_yearling_average
+from cte
+group by bowlerName)
+,cte2 as 
+(select bowlerName, avg(bowling_yearling_average) as bowling_average
+from cte1
+group by bowlerName)
+select top 10 bowlerName,bowling_average
+from cte2
+order by bowling_average desc
+
+//Top 10 bowlers based on past 3 years economy rate. (min 60 balls bowled in each season)//
+with cte as 
+(select bowlerName,YEAR(matchDate) as date,
+sum(runs) as total_runs,sum(overs) as total_overs_bowled
+from fact_bowling_summary a
+join dim_match_summary b on a.match_id=b.match_id
+where year(matchDate) in (2021,2022,2023)
+group by bowlerName,YEAR(matchDate)
+having sum(overs*6)>=60)
+,cte1 as 
+(select bowlerName, (total_runs/total_overs_bowled) as overs_yearling_average
+from cte
+group by bowlerName)
+,cte2 as 
+(select bowlerName, avg(overs_yearling_average) as total_overs_average
+from cte1
+group by bowlerName)
+select top 10 bowlerName,total_overs_average
+from cte2
+order by total_overs_average desc
+
+//Top 5 batsmen based on past 3 years boundary % (fours and sixes)//
+with cte as 
+(select batsmanName,year(matchDate) as date
+,sum("4s") + sum("6s") as total_boundaries,SUM(balls) AS total_balls
+from fact_bating_summary a
+join dim_match_summary b on a.match_id=b.match_id
+where year(matchDate) in (2021,2022,2023)
+group by batsmanName,year(matchDate))
+,cte1 AS (
+    SELECT batsmanName, SUM(total_boundaries) AS total_boundaries_3_years,
+    SUM(total_balls) AS total_balls_3_years
+    FROM cte
+    GROUP BY batsmanName
+),
+cte2 AS (
+    SELECT batsmanName, 
+    (total_boundaries_3_years * 100.0 / total_balls_3_years) AS boundary_percentage
+    FROM cte1)
+select top 10 batsmanName
+from cte
+order by total_boundaries desc
+
+//Top 5 bowlers based on past 3 years dot ball %//
+with cte as 
+(select bowlerName,year(matchDate) as date,sum("0s") as total_dot_balls,
+SUM(overs * 6) AS total_balls_bowled
+from fact_bowling_summary a
+join dim_match_summary b on a.match_id=b.match_id
+where year(matchDate) in (2021,2022,2023)
+group by bowlerName,year(matchDate))
+,cte1 AS (
+    SELECT bowlerName, SUM(total_dot_balls) AS total_dot_balls_3_years,
+        SUM(total_balls_bowled) AS total_balls_bowled_3_years
+    FROM cte
+    GROUP BY bowlerName),
+cte2 AS (
+    SELECT bowlerName, 
+   (total_dot_balls_3_years * 100.0 / total_balls_bowled_3_years) AS dot_ball_percentage
+    FROM cte1)
+select top 5 bowlerName
+from cte
+order by total_dot_balls desc
+
+
+//Top 4 teams(winner) based on past 3 years//
+select top 4 winner,COUNT(*) AS total_wins
+from dim_match_summary
+where year(matchDate) in (2021,2022,2023)
+group by winner
+HAVING COUNT(DISTINCT year(matchDate)) = 3
+order by COUNT(*) desc
+
+//Top 2 teams with the highest number of wins achieved by chasing targets over the past 3 years//
+select top 2 winner,count(*) as win
+from dim_match_summary
+where winner in (select team2 from dim_match_summary where team2 IS NOT NULL)
+ and year(matchDate) in (2021,2022,2023)
+ and winner <> team2 
+group by winner
+HAVING COUNT(DISTINCT year(matchDate)) = 3
+order by count(*) desc
+
+//Orange cap player
+--Orange Cap has scored the most runs among all players//
+with cte as 
+(select batsmanName as orange_cap_player,sum(runs) as total_runs_scored,year(matchDate) as year
+from fact_bating_summary a
+join dim_match_summary b on a.match_id=b.match_id
+where year(matchDate) in (2021,2022,2023)
+group by batsmanName,year(matchDate))
+,cte1 as 
+(select *,rank() over(partition by year order by total_runs_scored desc) rk
+from cte
+)
+select *
+from cte1
+where rk=1
+
+//purple cap player
+--number of wickets taken by each bowler//
+with cte as 
+(select bowlerName as Purple_cap_player,sum(wickets) as total_wickets_taken,year(matchDate) as year
+from fact_bowling_summary a
+join dim_match_summary b on a.match_id=b.match_id
+where year(matchDate) in (2021,2022,2023)
+group by bowlerName,year(matchDate))
+,cte1 as 
+(select * , rank() over(partition by year order by total_wickets_taken desc) as rk
+from cte)
+select *
+from cte1
+where rk=1
+
+//Top 4 qualifying teams//
+with cte as
+(select winner as qualifying_teams, count(*) as wins,year(matchDate) as year
+from dim_match_summary
+where year(matchDate) is not null
+group by winner,year(matchDate))
+--order by count(*) desc)
+,cte1 as 
+(select *,row_number() over(partition by year order by wins desc) as rk
+from cte)
+select qualifying_teams,year from cte1
+where rk<=4 
+
+//Winner and runner-up//
+with cte as
+(select winner as qualifying_teams, count(*) as wins,year(matchDate) as year
+from dim_match_summary
+where year(matchDate) is not null
+group by winner,year(matchDate))
+--order by count(*) desc)
+,cte1 as 
+(select *,row_number() over(partition by year order by wins desc) as rk
+from cte)
+select *from cte1
+where rk<=2
