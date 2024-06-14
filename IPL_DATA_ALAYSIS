@@ -29,15 +29,11 @@ WHERE YEAR(matchDate) IN (2021, 2022, 2023)
 group by batsmanName,YEAR(matchDate)
 having sum(balls)>=60)
 ,cte1 as 
-(select batsmanName,(total_runs / total_balls) AS yearly_avg
+(select batsmanName,(total_runs / total_balls) AS batting_avg
 from cte
 group by batsmanName)
-,cte2 as 
-(select batsmanName,avg(yearly_avg) as batting_avg
-from cte1
-group by batsmanName)
 select top 10 batsmanName,batting_avg
-from cte2
+from cte1
 order by batting_avg desc
 
 //Top 10 batsmen based on past 3 years strike rate (min 60 balls faced in each season)//
